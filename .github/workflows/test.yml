@@ -1,0 +1,41 @@
+name: test
+
+# Installs every formula from source and runs its `test do` block, on macOS,
+# the platform people actually `brew install` on. The release workflow in
+# bhurghundii/vibecheck.dev pushes formula updates here with a token, so those
+# pushes run this too.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  formulae:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      # Also taps this checkout as bhurghundii/tap.
+      - uses: Homebrew/actions/setup-homebrew@main
+
+      - name: Install, test and audit
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          formulae=(Formula/*.rb)
+          if [ ${#formulae[@]} -eq 0 ]; then
+            echo "No formulae yet."
+            exit 0
+          fi
+          for path in "${formulae[@]}"; do
+            name="bhurghundii/tap/$(basename "$path" .rb)"
+            brew install --build-from-source --verbose "$name"
+            brew test --verbose "$name"
+            brew audit "$name"
+          done
